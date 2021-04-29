@@ -19,6 +19,7 @@ typedef struct{
 	u8 pump = Ban;
 	u8 clip = Ban;
 	u8 turnTable = Ban;
+	u8 firstliving = 0;
 
 
 

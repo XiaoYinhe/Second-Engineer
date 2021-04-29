@@ -34,8 +34,7 @@ void ClimbPosition_ctrl();
 
 extern _ResetCmd ResetCmd;
 _flagCmd flagCmd;
-enum pumpTurn_sta{upper,horizontal,below};
-enum climb_sta{zero_point,fully_extend};
+
 float Air_Cylinder[4];
 u8 translation;
 Motor Climbing[2] =
@@ -49,32 +48,33 @@ Motor Turning[2] =
    Motor (M2006,CAN1,0x204),
 };
 
-Motor TurnTable(M3508,CAN2,0x201),Clip(M2006,CAN2,0x202);
+Motor TurnTable(M3508,CAN2,0x201),Clip(M2006,CAN2,0x202),Transition(M3508,CAN2,0x203);
 
 PidParam in_climb[2],out_climb[2];
 PidParam in_turn[2],out_turn[2];
 PidParam in_table[2],out_table[2];
 PidParam in_clip[2],out_clip[2];
+PidParam in_trans[2],out_trans[2];
 
 /*气泵吸盘转的两个2006.避免抽搐的函数，封为标志位,记得调参*/
 void Pumpturning_ctrl()
 {
 	switch(flagCmd.pumpTurn)
 	{
-		case upper:
+		case 0:
 			Turning[0].ctrlPosition(UpPos + ResetCmd.LTurnNowPos);
 			Turning[1].ctrlPosition(-UpPos + ResetCmd.RTurnNowPos);
 			break;
-		case horizontal:
+		case 1:
 			Turning[0].ctrlPosition(MidPos + ResetCmd.LTurnNowPos);		
 		  Turning[1].ctrlPosition(-MidPos + ResetCmd.RTurnNowPos);	
 			break;
-		case below:
+		case 2:
 			Turning[0].ctrlPosition(DownPos + ResetCmd.LTurnNowPos);
 		  Turning[1].ctrlPosition(-DownPos + ResetCmd.RTurnNowPos);
 			break;
 		
-		break;
+		
 	}
 
 
@@ -84,11 +84,11 @@ void ClimbPosition_ctrl()
 {
 	switch(flagCmd.climb)
 	{
-		case zero_point:
+		case 0:
 			Climbing[0].ctrlPosition(0 + ResetCmd.LClimbNowPos);
 			Climbing[1].ctrlPosition(0 + ResetCmd.RClimbNowPos);
 			break;
-		case fully_extend:
+		case 1:
 			Climbing[0].ctrlPosition(Max_extension + ResetCmd.LClimbNowPos);
 		  Climbing[1].ctrlPosition(-Max_extension + ResetCmd.RClimbNowPos);
 			break;
@@ -107,8 +107,29 @@ void Airsend()
 	canTx(Air_Cylinder,CAN1,0x113);	
 }
 
+
+void Transition_position_ctrl()
+{
+	if(flagCmd.firstliving != 0)	//firstliving由主控发过来
+	{
+		
+		
+	}
+	
+
+
+
+
+
+}
+
+
+
+
+
 void Ore_Task(void *pvParameters)
 {
+	//气泵吸盘爬配置
 	for(int i = 0;i<2;i++)
 	{
 	
@@ -133,7 +154,7 @@ void Ore_Task(void *pvParameters)
 		
 		
 	}
-	
+	//气泵吸盘转配置
 	for(int i = 0;i<2;i++)
 	{
 	
@@ -162,7 +183,7 @@ void Ore_Task(void *pvParameters)
 	
 	
 	/*肚子转盘TurnTable配置*/
-	
+	{
 	TurnTable.pidInner.setPlanNum(2);
 	TurnTable.pidOuter.setPlanNum(2);
 	
@@ -181,9 +202,9 @@ void Ore_Task(void *pvParameters)
 	
 	TurnTable.pidInner.fbValuePtr[0] = &TurnTable.canInfo.speed;
 	TurnTable.pidOuter.fbValuePtr[0] = &TurnTable.canInfo.totalEncoder;
-
+	}
 	/*肚子夹子Clip配置*/
-	
+	{
 	Clip.pidInner.setPlanNum(2);
 	Clip.pidOuter.setPlanNum(2);
 	
@@ -203,8 +224,34 @@ void Ore_Task(void *pvParameters)
 	Clip.pidInner.fbValuePtr[0] = &Clip.canInfo.speed;
 	Clip.pidOuter.fbValuePtr[0] = &Clip.canInfo.totalEncoder;
 	
-	
+	}
 
+	//平移架配置
+	{
+	Transition.pidInner.setPlanNum(2);
+	Transition.pidOuter.setPlanNum(2);
+	
+	in_trans[0].kp = 0;
+	in_trans[0].ki = 0;
+	in_trans[0].kd = 0;
+	in_trans[0].resultMax = 13500;//Transition.getMotorCurrentLimit();
+	
+	out_trans[0].kp = 0;
+	out_trans[0].ki = 0;
+	out_trans[0].kd = 0;	
+	out_trans[0].resultMax = 6000;//Transition.getMotorSpeedLimit()/4;
+	
+	Transition.pidInner.paramPtr = &in_trans[0];
+	Transition.pidOuter.paramPtr = &out_trans[0];
+	
+	Transition.pidInner.fbValuePtr[0] = &Transition.canInfo.speed;
+	Transition.pidOuter.fbValuePtr[0] = &Transition.canInfo.totalEncoder;
+	
+	
+	}
+	
+	
+	
 	while(1)	
 	{
 	  ClimbPosition_ctrl();
