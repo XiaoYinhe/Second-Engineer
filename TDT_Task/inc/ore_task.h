@@ -7,9 +7,12 @@
 #define MidPos 71000 
 #define DownPos	142000
 #define Max_extension 565000
+
 #define Ban 10
 
-
+#define Exchange_position  240000
+#define Silver_position  300000
+#define caught_falling_position 350000
 
 
 typedef struct{
@@ -21,10 +24,17 @@ typedef struct{
 	u8 turnTable = Ban;
 	u8 firstliving = 0;
 
-
+  u8 Elevator_position = 0;
+	u8 QuadraticCmd = 0;
 
 }_flagCmd;
 
+
+typedef struct{
+	int Uplift_times;
+	int Uplift_times_last;
+
+}_count;
 
 
 typedef struct{
@@ -43,6 +53,9 @@ void Airsend();
 
 extern _flagCmd flagCmd;
 extern _STA STA;
+
+void TDT_Uplift_Three(void);
+
 
 
 

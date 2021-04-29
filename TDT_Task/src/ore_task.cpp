@@ -34,9 +34,21 @@ void ClimbPosition_ctrl();
 
 extern _ResetCmd ResetCmd;
 _flagCmd flagCmd;
+_count Count;
+
 
 float Air_Cylinder[4];
 u8 translation;
+enum Elevator_sta{bottom,exchange,silver,caught};
+
+Motor Elevator[2] =
+{
+   Motor (M3508,CAN2,0x204),
+   Motor (M3508,CAN2,0x205)
+
+};
+
+
 Motor Climbing[2] =
 {
    Motor (M2006,CAN1,0x201),
@@ -55,6 +67,87 @@ PidParam in_turn[2],out_turn[2];
 PidParam in_table[2],out_table[2];
 PidParam in_clip[2],out_clip[2];
 PidParam in_trans[2],out_trans[2];
+PidParam in_elevator[2],out_elevator[2];
+
+void TDT_Uplift_Three()
+{
+	/*抬升的两个电机0x201上升时顺时针，下降时逆时针，顺时针为正，0x202相反*/
+		if(Count.Uplift_times == 1 && Count.Uplift_times_last == 0)   //上升到1
+		{
+			flagCmd.QuadraticCmd = 1;
+		}
+		else if((Count.Uplift_times == 1 && Count.Uplift_times_last == 2) || (Count.Uplift_times == 1 && Count.Uplift_times_last == 3))
+		{
+			flagCmd.QuadraticCmd = 0;																		//下降到1
+		}
+		else if((Count.Uplift_times == 2 && Count.Uplift_times_last == 1) || (Count.Uplift_times == 2 && Count.Uplift_times_last == 0))//上升到2
+		{
+			flagCmd.QuadraticCmd = 2;
+		}
+		else if(Count.Uplift_times == 2 && Count.Uplift_times_last == 3) //下降到2
+		{
+			flagCmd.QuadraticCmd = 3;
+		}
+		
+		
+	switch(Count.Uplift_times)																						
+	{
+		case bottom:			
+			out_elevator[0].resultMax = Elevator[0].getMotorSpeedLimit()/7;		
+			out_elevator[1].resultMax = Elevator[0].getMotorSpeedLimit()/7;
+			Elevator[0].ctrlPosition(0);
+			Elevator[1].ctrlPosition(0);			
+			break;
+		case exchange:																			
+			if( flagCmd.QuadraticCmd == 1)					//上升到500
+			{
+				out_elevator[0].resultMax = Elevator[0].getMotorSpeedLimit()/5;
+				out_elevator[1].resultMax = Elevator[0].getMotorSpeedLimit()/5;
+				Elevator[0].ctrlPosition(Exchange_position);
+				Elevator[1].ctrlPosition(-Exchange_position);			
+			}
+			if(flagCmd.QuadraticCmd == 0)					//下降到500
+			{
+				out_elevator[0].resultMax = Elevator[0].getMotorSpeedLimit()/7;
+				out_elevator[1].resultMax = Elevator[0].getMotorSpeedLimit()/7;
+				Elevator[0].ctrlPosition(Exchange_position);			
+				Elevator[1].ctrlPosition(-Exchange_position);
+			}
+			break;
+		case silver:
+			if(flagCmd.QuadraticCmd == 2)					//上升到600
+			{
+				out_elevator[0].resultMax = Elevator[0] .getMotorSpeedLimit()/5;
+				out_elevator[1].resultMax = Elevator[0] .getMotorSpeedLimit()/5;
+				Elevator[0].ctrlPosition(Silver_position);
+				Elevator[1].ctrlPosition(-Silver_position);
+			}
+			if(flagCmd.QuadraticCmd == 3)					//下降
+			{
+				out_elevator[0].resultMax = Elevator[0].getMotorSpeedLimit()/7;
+				out_elevator[1].resultMax = Elevator[0].getMotorSpeedLimit()/7;
+				Elevator[0].ctrlPosition(Silver_position);			
+				Elevator[1].ctrlPosition(-Silver_position);		
+			}
+			break;
+		case caught://上升到700
+			
+			out_elevator[0].resultMax = Elevator[0].getMotorSpeedLimit()/5;
+			out_elevator[1].resultMax = Elevator[0].getMotorSpeedLimit()/5;
+			Elevator[0].ctrlPosition(caught_falling_position);
+			Elevator[1].ctrlPosition(-caught_falling_position);
+			
+			break;
+		default:
+			break;				
+	}
+
+			Count.Uplift_times_last = Count.Uplift_times;
+		
+			vTaskDelay(pdMS_TO_TICKS(5));
+}
+
+
 
 /*气泵吸盘转的两个2006.避免抽搐的函数，封为标志位,记得调参*/
 void Pumpturning_ctrl()
@@ -154,6 +247,32 @@ void Ore_Task(void *pvParameters)
 		
 		
 	}
+	
+		for(int i = 0;i<2;i++)
+	{
+	
+		Elevator[i].pidInner.setPlanNum(2);
+		Elevator[i].pidOuter.setPlanNum(2);
+	
+		in_elevator[i].kp = 0;
+		in_elevator[i].ki = 0;
+		in_elevator[i].kd = 0;
+		in_elevator[i].resultMax = Elevator[i].getMotorCurrentLimit();
+		
+		out_elevator[i].kp = 0;
+		out_elevator[i].ki = 0;
+		out_elevator[i].kd = 0;	
+		
+		
+		Elevator[i].pidInner.paramPtr = &in_elevator[i];
+		Elevator[i].pidOuter.paramPtr = &out_elevator[i];
+		
+		Elevator[i].pidInner.fbValuePtr[0] = &Elevator[i].canInfo.speed;
+		Elevator[i].pidOuter.fbValuePtr[0] = &Elevator[i].canInfo.totalEncoder;
+		
+		
+	}
+	
 	//气泵吸盘转配置
 	for(int i = 0;i<2;i++)
 	{
@@ -254,6 +373,7 @@ void Ore_Task(void *pvParameters)
 	
 	while(1)	
 	{
+		TDT_Uplift_Three();
 	  ClimbPosition_ctrl();
     Pumpturning_ctrl();
 		vTaskDelay(pdMS_TO_TICKS(5));
