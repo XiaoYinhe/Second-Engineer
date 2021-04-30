@@ -38,8 +38,11 @@ _count Count;
 
 
 float Air_Cylinder[4];
-u8 translation;
-enum Elevator_sta{bottom,exchange,silver,caught};
+u8 translation;//气缸平移
+int16_t handleTranFeed = 0;
+int16_t tranfeed=0;
+enum trans_pos_name{middle,Far_right,Far_left};
+double tran_position[3]={0,-165000,165000};
 
 Motor Elevator[2] =
 {
@@ -92,13 +95,13 @@ void TDT_Uplift_Three()
 		
 	switch(Count.Uplift_times)																						
 	{
-		case bottom:			
+		case 0:			
 			out_elevator[0].resultMax = Elevator[0].getMotorSpeedLimit()/7;		
 			out_elevator[1].resultMax = Elevator[0].getMotorSpeedLimit()/7;
 			Elevator[0].ctrlPosition(0);
 			Elevator[1].ctrlPosition(0);			
 			break;
-		case exchange:																			
+		case 1:																			
 			if( flagCmd.QuadraticCmd == 1)					//上升到500
 			{
 				out_elevator[0].resultMax = Elevator[0].getMotorSpeedLimit()/5;
@@ -114,7 +117,7 @@ void TDT_Uplift_Three()
 				Elevator[1].ctrlPosition(-Exchange_position);
 			}
 			break;
-		case silver:
+		case 2:
 			if(flagCmd.QuadraticCmd == 2)					//上升到600
 			{
 				out_elevator[0].resultMax = Elevator[0] .getMotorSpeedLimit()/5;
@@ -130,7 +133,7 @@ void TDT_Uplift_Three()
 				Elevator[1].ctrlPosition(-Silver_position);		
 			}
 			break;
-		case caught://上升到700
+		case 3://上升到700
 			
 			out_elevator[0].resultMax = Elevator[0].getMotorSpeedLimit()/5;
 			out_elevator[1].resultMax = Elevator[0].getMotorSpeedLimit()/5;
@@ -203,11 +206,31 @@ void Airsend()
 
 void Transition_position_ctrl()
 {
-	if(flagCmd.firstliving != 0)	//firstliving由主控发过来
+	if(flagCmd.firstliving == 0)	//firstliving由主控发过来，上电时为0，按键控制复位检测啥的，置1
 	{
-		
+		switch(flagCmd.trans)
+		{
+			case 0:
+				Transition.ctrlPosition(tran_position[middle] + tranfeed + handleTranFeed);
+				break;
+			case 1:
+				Transition.ctrlPosition(tran_position[Far_right] + tranfeed + handleTranFeed);
+				break;
+			case 2:
+				Transition.ctrlPosition(tran_position[Far_left] + tranfeed + handleTranFeed);
+				break;
+			case 3:		//调试用，及时停的
+				Transition.ctrlSpeed(0,0);
+				break;
+		}
+
 		
 	}
+	
+//	if(flagCmd.firstliving != 0)//复位用，调节tranfeed值并把handleTranFeed=0
+//	{
+//		
+//	}
 	
 
 
@@ -350,15 +373,15 @@ void Ore_Task(void *pvParameters)
 	Transition.pidInner.setPlanNum(2);
 	Transition.pidOuter.setPlanNum(2);
 	
-	in_trans[0].kp = 0;
-	in_trans[0].ki = 0;
+	in_trans[0].kp = 0;//9;
+	in_trans[0].ki = 0;//30;
 	in_trans[0].kd = 0;
 	in_trans[0].resultMax = 13500;//Transition.getMotorCurrentLimit();
 	
-	out_trans[0].kp = 0;
+	out_trans[0].kp = 0;//0.27;
 	out_trans[0].ki = 0;
 	out_trans[0].kd = 0;	
-	out_trans[0].resultMax = 6000;//Transition.getMotorSpeedLimit()/4;
+	out_trans[0].resultMax = 2000;//Transition.getMotorSpeedLimit()/4;
 	
 	Transition.pidInner.paramPtr = &in_trans[0];
 	Transition.pidOuter.paramPtr = &out_trans[0];
@@ -373,9 +396,11 @@ void Ore_Task(void *pvParameters)
 	
 	while(1)	
 	{
-		TDT_Uplift_Three();
-	  ClimbPosition_ctrl();
-    Pumpturning_ctrl();
+//		TDT_Uplift_Three();
+//		ClimbPosition_ctrl();
+//		Pumpturning_ctrl();
+//		Transition_position_ctrl();
+		Transition.ctrlSpeed(0,0);
 		vTaskDelay(pdMS_TO_TICKS(5));
 	}
 	

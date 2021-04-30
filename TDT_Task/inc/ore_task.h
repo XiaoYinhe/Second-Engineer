@@ -23,9 +23,11 @@ typedef struct{
 	u8 clip = Ban;
 	u8 turnTable = Ban;
 	u8 firstliving = 0;
-
-  u8 Elevator_position = 0;
+	u8 trans = Ban;
+	
+	u8 Elevator_position = 0;
 	u8 QuadraticCmd = 0;
+	
 
 }_flagCmd;
 
