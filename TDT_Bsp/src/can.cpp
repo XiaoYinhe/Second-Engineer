@@ -19,6 +19,10 @@ History:
 #include "motor.h"
 #include "can_calculate.h"
 
+#include "FreeRTOS.h"					//FreeRTOS使用	 
+#include "queue.h"
+#include "task.h"
+
 /*----CAN1_TX-----PA12----*/
 /*----CAN1_RX-----PA11----*/
 CanRxMsg Can1RxMsg;
@@ -206,7 +210,12 @@ void CAN1_RX0_IRQHandler(void)
 
 _bar_code bar_code;
 
+uint8_t sbuf[16];
 
+extern QueueHandle_t DBUS_Queue;					//CAN1消息队列句柄
+extern TaskHandle_t DbusTask_Handler;
+/*我也不知道干啥用的，就知道好像得定义成变量*/
+BaseType_t xTaskWokenByReceive_Notice;//发送通知用的
 void CAN2_RX0_IRQHandler(void)
 {
 	if (CAN_GetITStatus(CAN2,CAN_IT_FMP0)!= RESET)
@@ -222,7 +231,15 @@ void CAN2_RX0_IRQHandler(void)
 				bar_code.Down = ((Can2RxMsg.Data[1])>>3) & 0x01;
 				bar_code.Left = ((Can2RxMsg.Data[3])>>5) & 0x01;
 				bar_code.Right = ((Can2RxMsg.Data[3])>>4) & 0x01;
-				break;	
+				break;
+			case 0x114:
+				sbuf[12] = Can2RxMsg.Data[0];	//SBUS_buf[12];鼠标左键
+				sbuf[13] = Can2RxMsg.Data[1];	//SBUS_buf[13];鼠标右键
+				sbuf[14] = Can2RxMsg.Data[2];	//SBUS_buf[14];键盘低8通道
+				sbuf[15] = Can2RxMsg.Data[3];	//SBUS_buf[15];鼠标高8通道
+				sbuf[5] = Can2RxMsg.Data[4];	//遥控左右拨杆
+				//发送通知，目标为DBUS任务，通知值为原始数据地址，且不保留接受任务的通知值，接受任务的通知值被覆盖
+				xTaskNotifyFromISR(DbusTask_Handler,(uint32_t)(&sbuf[0]),eSetValueWithOverwrite,&xTaskWokenByReceive_Notice);
 			default:
 				break;				
 		}
